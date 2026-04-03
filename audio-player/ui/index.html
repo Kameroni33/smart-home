@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audio Player</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+      color: #fff;
+    }
+
+    #status-bar {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 1.5rem;
+      min-height: 1.2em;
+    }
+
+    #status-bar.playing { color: #6ee7b7; }
+    #status-bar.paused  { color: #fde68a; }
+
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    button {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      color: #e0e0e0;
+      padding: 0.5rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.15s;
+    }
+
+    button:hover { background: #2a2a2a; }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    #pause-btn { border-color: #7f1d1d; color: #fca5a5; }
+    #pause-btn:hover { background: #1c0a0a; }
+    #pause-btn.paused { border-color: #854d0e; color: #fde68a; }
+    #pause-btn.paused:hover { background: #1c1000; }
+
+    #volume-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    #volume {
+      width: 120px;
+      accent-color: #6ee7b7;
+    }
+
+    #vol-input {
+      width: 3.2rem;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      color: #e0e0e0;
+      padding: 0.25rem 0.4rem;
+      font-size: 0.85rem;
+      text-align: center;
+      outline: none;
+    }
+
+    #vol-input:focus { border-color: #444; }
+    #vol-input::-webkit-outer-spin-button,
+    #vol-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #vol-input { -moz-appearance: textfield; }
+
+    #track-list {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    #track-list h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #555;
+      margin-bottom: 0.75rem;
+    }
+
+    .track-item {
+      padding: 0.65rem 1rem;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      margin-bottom: 0.4rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-item:hover { background: #222; border-color: #444; }
+    .track-item.active { border-color: #6ee7b7; color: #6ee7b7; background: #0d2520; }
+
+    #empty {
+      color: #555;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    #downloader {
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 1.75rem;
+    }
+
+    #downloader h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #555;
+      margin-bottom: 0.75rem;
+    }
+
+    #dl-form {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    #dl-url {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      color: #e0e0e0;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    #dl-url:focus { border-color: #444; }
+    #dl-url::placeholder { color: #444; }
+
+    #dl-btn { white-space: nowrap; }
+    #dl-btn.loading { opacity: 0.5; cursor: default; }
+
+    #dl-status {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      min-height: 1.1em;
+      color: #888;
+    }
+
+    #dl-status.ok { color: #6ee7b7; }
+    #dl-status.err { color: #fca5a5; }
+
+    #dl-bar-wrap {
+      height: 3px;
+      background: #1e1e1e;
+      border-radius: 2px;
+      margin-top: 0.6rem;
+      overflow: hidden;
+      display: none;
+    }
+
+    #dl-bar-wrap.active { display: block; }
+
+    #dl-bar {
+      height: 100%;
+      width: 40%;
+      background: #6ee7b7;
+      border-radius: 2px;
+      animation: dl-slide 1.4s ease-in-out infinite;
+    }
+
+    @keyframes dl-slide {
+      0%   { transform: translateX(-150%); }
+      100% { transform: translateX(350%); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Audio Player</h1>
+  <div id="status-bar">Pick a track below, or paste a YouTube link to download new ones.</div>
+
+  <div id="controls">
+    <button id="pause-btn" onclick="togglePause()" disabled>Pause</button>
+    <div id="volume-wrap">
+      <span>Vol</span>
+      <input id="volume" type="range" min="0" max="100" value="100" oninput="onSliderChange(this.value)" />
+      <input id="vol-input" type="number" min="0" max="100" value="100" />
+    </div>
+  </div>
+
+  <div id="downloader">
+    <h2>Add from YouTube</h2>
+    <div id="dl-form">
+      <input id="dl-url" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+      <button id="dl-btn" onclick="downloadTrack()">Download</button>
+    </div>
+    <div id="dl-bar-wrap"><div id="dl-bar"></div></div>
+    <div id="dl-status"></div>
+  </div>
+
+  <div id="track-list">
+    <h2>Tracks</h2>
+    <div id="tracks"></div>
+  </div>
+
+  <script>
+    let currentTrack = null;
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/status');
+        const data = await res.json();
+        currentTrack = data.track;
+        updateStatusBar(data);
+        updatePauseBtn(data);
+        document.getElementById('volume').value = data.volume;
+        document.getElementById('vol-input').value = data.volume;
+        highlightActive();
+      } catch (e) {
+        setStatusBar('Cannot reach server', false);
+      }
+    }
+
+    async function loadTracks() {
+      const container = document.getElementById('tracks');
+      try {
+        const res = await fetch('/tracks');
+        const data = await res.json();
+        if (data.tracks.length === 0) {
+          container.innerHTML = '<div id="empty">No tracks found in /tracks</div>';
+          return;
+        }
+        container.innerHTML = data.tracks.map(t =>
+          `<div class="track-item" data-track="${t}" onclick="play('${CSS.escape(t)}')">${t}</div>`
+        ).join('');
+        highlightActive();
+      } catch (e) {
+        container.innerHTML = '<div id="empty">Failed to load tracks</div>';
+      }
+    }
+
+    async function play(track) {
+      // unescape in case CSS.escape was applied to the selector
+      const item = document.querySelector(`.track-item[data-track="${track}"]`);
+      const trackName = item ? item.dataset.track : track;
+      try {
+        const res = await fetch('/play', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ track: trackName }),
+        });
+        const data = await res.json();
+        currentTrack = data.track;
+        const statusData = { track: data.track, playing: true, paused: false };
+        updateStatusBar(statusData);
+        updatePauseBtn(statusData);
+        highlightActive();
+      } catch (e) {
+        setStatusBar('Playback failed', false);
+      }
+    }
+
+    async function togglePause() {
+      try {
+        const res = await fetch('/pause', { method: 'POST' });
+        const data = await res.json();
+        const isPaused = data.status === 'paused';
+        currentTrack = data.track;
+        updateStatusBar({ track: data.track, playing: !isPaused, paused: isPaused });
+        updatePauseBtn({ track: data.track, paused: isPaused });
+        highlightActive();
+      } catch (e) {}
+    }
+
+    function updatePauseBtn(data) {
+      const btn = document.getElementById('pause-btn');
+      btn.disabled = !data.track;
+      if (data.paused) {
+        btn.textContent = 'Resume';
+        btn.classList.add('paused');
+      } else {
+        btn.textContent = 'Pause';
+        btn.classList.remove('paused');
+      }
+    }
+
+    function onSliderChange(val) {
+      document.getElementById('vol-input').value = val;
+      setVolume(val);
+    }
+
+    async function setVolume(val) {
+      const clamped = Math.max(0, Math.min(100, parseInt(val) || 0));
+      document.getElementById('volume').value = clamped;
+      document.getElementById('vol-input').value = clamped;
+      try {
+        await fetch('/volume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ level: clamped }),
+        });
+      } catch (e) {}
+    }
+
+    function updateStatusBar(data) {
+      const bar = document.getElementById('status-bar');
+      if (data.playing && data.track) {
+        bar.textContent = `Playing: ${data.track}`;
+        bar.className = 'playing';
+      } else if (data.paused && data.track) {
+        bar.textContent = `Paused: ${data.track}`;
+        bar.className = 'paused';
+      } else {
+        bar.textContent = 'Pick a track below, or paste a YouTube link to download new ones.';
+        bar.className = '';
+      }
+    }
+
+    function highlightActive() {
+      document.querySelectorAll('.track-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.track === currentTrack);
+      });
+    }
+
+    async function downloadTrack() {
+      const input = document.getElementById('dl-url');
+      const btn = document.getElementById('dl-btn');
+      const status = document.getElementById('dl-status');
+      const url = input.value.trim();
+
+      if (!url) return;
+
+      btn.disabled = true;
+      btn.classList.add('loading');
+      btn.textContent = 'Downloading...';
+      status.textContent = 'Downloading — this may take a moment...';
+      status.className = '';
+      document.getElementById('dl-bar-wrap').classList.add('active');
+
+      try {
+        const res = await fetch('/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          status.textContent = `Error: ${data.detail || 'Download failed'}`;
+          status.className = 'err';
+        } else {
+          status.textContent = `Downloaded: ${data.track}`;
+          status.className = 'ok';
+          input.value = '';
+          loadTracks();
+        }
+      } catch (e) {
+        status.textContent = 'Request failed';
+        status.className = 'err';
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.textContent = 'Download';
+        document.getElementById('dl-bar-wrap').classList.remove('active');
+      }
+    }
+
+    // Volume text input — commit on Enter or blur
+    const volInput = document.getElementById('vol-input');
+    volInput.addEventListener('keydown', e => { if (e.key === 'Enter') setVolume(volInput.value); });
+    volInput.addEventListener('blur', () => setVolume(volInput.value));
+
+    // Allow pressing Enter in the URL input
+    document.getElementById('dl-url').addEventListener('keydown', e => {
+      if (e.key === 'Enter') downloadTrack();
+    });
+
+    // Init
+    fetchStatus().then(loadTracks);
+    // Poll status every 5s to sync if something changes server-side
+    setInterval(fetchStatus, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+services:
+  audio-player:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./tracks:/tracks
+    devices:
+      - /dev/snd:/dev/snd
+    environment:
+      - SDL_AUDIODRIVER=alsa
+      - SDL_VIDEODRIVER=dummy
+    restart: unless-stopped

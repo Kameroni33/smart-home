@@ -1,2 +1,2 @@
 # smart-home
-Collection of custom utilities &amp; scripts for smart home application
+Collection of custom utilities and scripts for smart home applications.

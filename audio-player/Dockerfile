@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     alsa-utils \
     libasound2 \
+    libpulse0 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
@@ -17,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ .
 COPY ui/ /ui/
 
-ENV SDL_AUDIODRIVER=alsa
+ENV SDL_AUDIODRIVER=pulseaudio
 ENV SDL_VIDEODRIVER=dummy
 ENV PYTHONUNBUFFERED=1
 

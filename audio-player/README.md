@@ -1,13 +1,15 @@
 # Audio Player
 
-A self-hosted white noise / audio player for a headless Raspberry Pi 4. Runs as a Docker container, plays audio through the aux jack, and exposes a web UI accessible over your local network.
+A self-hosted white noise / audio player for a headless Raspberry Pi. Runs as a Docker container and exposes a web UI accessible over your local network.
+
+Supports Bluetooth speakers (default) and USB aux adapters.
 
 ---
 
 ## Requirements
 
-- Raspberry Pi 4 (or any Linux machine with ALSA audio)
-- Fresh Raspberry Pi OS (Bookworm recommended)
+- Raspberry Pi 4 or 5 (or any Linux machine with PipeWire or ALSA)
+- Raspberry Pi OS Bookworm (recommended)
 - Internet connection for initial setup
 
 ---
@@ -41,7 +43,61 @@ docker compose version
 
 ---
 
-## 3. Start the Service
+## 3. Audio Output
+
+The container routes audio through the host's PipeWire audio server (default on Pi OS Bookworm), which handles both Bluetooth and USB audio devices.
+
+### Bluetooth Speaker
+
+**3a. Install Bluetooth tools on the Pi (if not already present):**
+```bash
+sudo apt install -y bluez bluez-tools
+```
+
+**3b. Pair and trust your speaker:**
+```bash
+bluetoothctl
+```
+
+Inside the bluetoothctl prompt:
+```
+power on
+agent on
+scan on
+# Wait for your speaker's MAC address to appear, e.g. AA:BB:CC:DD:EE:FF
+pair AA:BB:CC:DD:EE:FF
+trust AA:BB:CC:DD:EE:FF
+connect AA:BB:CC:DD:EE:FF
+exit
+```
+
+Once trusted, the speaker will reconnect automatically on boot.
+
+**3c. Confirm PipeWire sees the device:**
+```bash
+pactl list sinks short
+```
+
+You should see your Bluetooth speaker listed. If not, check that PipeWire is running:
+```bash
+systemctl --user status pipewire pipewire-pulse
+```
+
+The compose.yml mounts the PipeWire PulseAudio socket (`/run/user/1000/pulse`) into the container. If your Pi user has a different UID than `1000`, update the socket path in `compose.yml` accordingly:
+```bash
+id -u  # check your UID
+```
+
+### USB Aux Adapter
+
+When switching to a USB audio adapter, edit `compose.yml` — comment out the Bluetooth/PulseAudio block and uncomment the ALSA block at the bottom of the file. Then identify your card number:
+```bash
+aplay -l
+```
+
+---
+
+## 4. Start the Service
 
 ```bash
 # From inside audio-player/
@@ -62,7 +118,7 @@ docker compose down
 
 ---
 
-## 4. Access the Web UI
+## 5. Access the Web UI
 
 Find your Pi's IP address:
 ```bash
@@ -76,7 +132,7 @@ http://<pi-ip-address>:8000
 
 ---
 
-## 5. Add Tracks from YouTube
+## 6. Add Tracks from YouTube
 
 The web UI has a built-in YouTube downloader. Paste any YouTube video or playlist URL into the **Add from YouTube** field and click **Download** (or press Enter). The track will be downloaded, converted to MP3, saved to the `tracks/` folder, and appear in the list automatically.
 
@@ -101,7 +157,7 @@ docker compose exec audio-player yt-dlp \
 |--------|-------------|-------------------------------|------------------------------|
 | GET    | /tracks     | —                             | List available tracks        |
 | POST   | /play       | `{"track": "file.mp3"}`       | Play a track (loops)         |
-| POST   | /stop       | —                             | Stop playback                |
+| POST   | /pause      | —                             | Toggle pause / resume        |
 | POST   | /volume     | `{"level": 80}`               | Set volume (0–100)           |
 | GET    | /status     | —                             | Current playback state       |
 | POST   | /download   | `{"url": "https://..."}`      | Download YouTube URL as MP3  |
@@ -110,27 +166,27 @@ docker compose exec audio-player yt-dlp \
 
 ## Troubleshooting
 
-**No audio / wrong output device**
+**No audio over Bluetooth**
 
-Raspberry Pi often has multiple ALSA devices (HDMI + headphone jack). If you're not hearing audio from the aux output, identify your card:
-
+Make sure the speaker is connected on the host before starting the container:
 ```bash
-aplay -l
+bluetoothctl connect AA:BB:CC:DD:EE:FF
+pactl list sinks short  # confirm it appears
 ```
 
-Then add `AUDIODEV=hw:<card>,0` to the `environment` section in `compose.yml`:
-
-```yaml
-environment:
-  - SDL_AUDIODRIVER=alsa
-  - SDL_VIDEODRIVER=dummy
-  - AUDIODEV=hw:1,0   # adjust card number as needed
-```
-
-Restart the container after any change:
+Then restart the container:
 ```bash
-docker compose up -d
+docker compose restart
 ```
+
+**PipeWire socket not found**
+
+The container expects the socket at `/run/user/1000/pulse/native`. Verify yours:
+```bash
+ls /run/user/$(id -u)/pulse/
+```
+
+Update the volume mount and `PULSE_SERVER` in `compose.yml` if your UID differs.
 
 **Check container logs for errors:**
 ```bash

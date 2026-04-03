@@ -5,9 +5,18 @@ services:
       - "8000:8000"
     volumes:
       - ./tracks:/tracks
-    devices:
-      - /dev/snd:/dev/snd
+      - /run/user/1000/pulse:/run/user/1000/pulse  # PipeWire PulseAudio socket
     environment:
-      - SDL_AUDIODRIVER=alsa
+      - SDL_AUDIODRIVER=pulseaudio
       - SDL_VIDEODRIVER=dummy
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - PULSE_COOKIE=/dev/null  # skip cookie auth for local socket
     restart: unless-stopped
+
+    # Switching to USB aux later? Comment out the pulse volume above, uncomment below:
+    # devices:
+    #   - /dev/snd:/dev/snd
+    # environment:
+    #   - SDL_AUDIODRIVER=alsa
+    #   - SDL_VIDEODRIVER=dummy
+    #   - AUDIODEV=hw:1,0  # adjust card number from: aplay -l
